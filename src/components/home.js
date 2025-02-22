@@ -16,6 +16,7 @@ import {
 
 import { GiBearFace } from "react-icons/gi";
 import { FaEthereum } from "react-icons/fa";
+import { PiWalletFill } from "react-icons/pi";
 
 export const HomeComp = () => {
 
@@ -52,11 +53,9 @@ export const HomeComp = () => {
             setAccount(acc.address);
 
             const balanceWei = await web3.eth.getBalance(acc.address);
-            const balanceEth = web3.utils.fromWei(balanceWei, "ether");
+            const balanceEth = parseFloat(web3.utils.fromWei(balanceWei, "ether")).toFixed(4);
             const tokenBal = await tokenContract.methods.balanceOf(acc.address).call();
             const formattedBalance = web3.utils.fromWei(tokenBal, "ether");
-            
-            console.log(tokenBal);
 
             setBalances({ eth: balanceEth, srt: formattedBalance });
             setModal({ show: false, type: '' });
@@ -74,6 +73,14 @@ export const HomeComp = () => {
             }, 3500);
         }
 
+    };
+
+    const copytoclipboard = () => {
+        navigator.clipboard.writeText(account);
+        setMsg({ show: true, type: 'success', message: 'Wallet Address Copied' });
+        setTimeout(() => {
+            setMsg({ show: false, type: '', message: '' });
+        }, 3500);  
     };
 
     return (
@@ -95,6 +102,13 @@ export const HomeComp = () => {
                             SRT
                         </div>
                     </div>
+
+                        <div className="flex justify-end w-full duration-300">
+                            <button onClick={() => copytoclipboard()} className="flex items-center my-auto space-x-2 px-3 py-2 text-blue-700 rounded-full border-2 border-blue-400 bg-gradient-to-r from-sky-100 to-sky-300 hover:from-sky-300 hover:to-sky-100 duration-300">
+                                <PiWalletFill className="text-xl" />
+                                <span className="inline">{account.slice(0, 6)}...{account.slice(-4)}</span>
+                            </button>
+                        </div>
 
                 </div>
 
@@ -120,7 +134,7 @@ export const HomeComp = () => {
                             </div>
 
                             <div className="text-gray-700 font-semibold text-lg">
-                                0.01
+                                {balances.eth}
                             </div>
 
                         </div>
@@ -146,7 +160,7 @@ export const HomeComp = () => {
                             </div>
 
                             <div className="text-gray-700 font-semibold text-lg">
-                                1.0
+                                {balances.srt}
                             </div>
 
                         </div>
