@@ -8,4 +8,18 @@
     @apply max-w-[1250px] mx-auto;
   }
 
+  .base-text {
+    @apply text-[#0a254d];
+  }
+
+  .btn1 {
+    @apply bg-sky-600 px-5 py-2 text-white shadow-lg rounded-lg hover:scale-[105%] duration-300;
+  }
+
+  .field {
+    @apply rounded-lg px-3 py-2 border border-blue-800 focus:outline-none focus:border-sky-400;
+  }
+
 }
+
+.t {color: #00000094;}
