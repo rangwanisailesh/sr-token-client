@@ -21,6 +21,7 @@ import { FaRegClipboard } from "react-icons/fa";
 import { IoMdExit } from "react-icons/io";
 import { FaUser } from "react-icons/fa";
 import { IoReload } from "react-icons/io5";
+import { IoWalletOutline } from "react-icons/io5";
 
 export const HomeComp = () => {
 
@@ -197,7 +198,7 @@ export const HomeComp = () => {
 
                         <div className={`${userbox && account ? 'absolute top-12 right-0 bg-white shadow-lg p-5 rounded-lg duration-300 z-40' : 'hidden duration-300'}`}>
                             <button onClick={() => {copytoclipboard(account); setUserbox(false);}} className="flex items-center my-auto space-x-2 text-black border-b pb-2 mb-2 hover:scale-[105%] duration-300">
-                                <PiWalletFill className="text-xl text-blue-600" />
+                                <IoWalletOutline className="text-xl text-blue-600" />
                                 <span className="inline">{account.slice(0, 6)}...{account.slice(-4)}</span>
                             </button>
                             <button onClick={() => {
