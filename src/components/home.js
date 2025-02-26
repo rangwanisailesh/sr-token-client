@@ -1,5 +1,8 @@
 'use client'
 import { useState, useEffect } from "react"
+import axios from "axios";
+import jwt from "jsonwebtoken";
+require('dotenv').config();
 
 import Skeleton from '@mui/material/Skeleton';
 import Alert from '@mui/material/Alert';
@@ -32,6 +35,7 @@ export const HomeComp = () => {
     const [account, setAccount] = useState('');
     const [pvtKey, setPvtKey] = useState('');
     const [userbox, setUserbox] = useState(false);
+    const [remainingTime, setRemainingTime] = useState(0);
 
     const importwallet = async (e) => {
 
@@ -41,12 +45,12 @@ export const HomeComp = () => {
 
             setMsg({ show: true, type: 'info', message: 'Loading...' });
 
-            let pvtKey = inputs.pvtkey;
-            if (!pvtKey.startsWith("0x")) {
-                pvtKey = "0x" + pvtKey;
+            let prvtKey = inputs.pvtkey;
+            if (!prvtKey.startsWith("0x")) {
+                prvtKey = "0x" + prvtKey;
             }
 
-            if (pvtKey.length !== 66) {
+            if (prvtKey.length !== 66) {
                 setMsg({ show: true, type: 'error', message: 'Invalid Private Key length. Must be 64 characters (without 0x).' });
                 setTimeout(() => {
                     setMsg({ show: false, type: '', message: '' });
@@ -54,11 +58,28 @@ export const HomeComp = () => {
                 return;
             }
 
-            const acc = web3.eth.accounts.privateKeyToAccount(pvtKey);
+            const acc = web3.eth.accounts.privateKeyToAccount(prvtKey);
 
-            localStorage.setItem("SRT Token", acc.address);
+            const gettoken = await axios.post('/api/token',
+                {
+                    pvtkey: prvtKey,
+                    address: acc.address
+                },
+                {
+                    headers: {
+                        'Content-Type': 'application/json'
+                    }
+                }
+            );
+
+            const token = gettoken.data;
+
+            if (token.token) {
+                localStorage.setItem("SRT Token", token.token);
+            }
 
             setAccount(acc.address);
+            setPvtKey(prvtKey);
 
             const balanceWei = await web3.eth.getBalance(acc.address);
             const balanceEth = parseFloat(web3.utils.fromWei(balanceWei, "ether")).toFixed(4);
@@ -91,7 +112,25 @@ export const HomeComp = () => {
             setAccount(wallet.address);
             setPvtKey(wallet.privateKey);
             setModal({ show: true, type: 'create' })
-            localStorage.setItem("SRT Token", wallet.address);
+
+            const gettoken = await axios.post('/api/token',
+                {
+                    pvtkey: wallet.privateKey,
+                    address: wallet.address
+                },
+                {
+                    headers: {
+                        'Content-Type': 'application/json'
+                    }
+                }
+            );
+
+            const token = gettoken.data;
+
+            if (token.token) {
+                localStorage.setItem("SRT Token", token.token);
+            }
+
             const balanceWei = await web3.eth.getBalance(wallet.address);
             const balanceEth = parseFloat(web3.utils.fromWei(balanceWei, "ether")).toFixed(4);
             const tokenBal = await tokenContract.methods.balanceOf(wallet.address).call();
@@ -130,18 +169,53 @@ export const HomeComp = () => {
         }, 3500);
     };
 
+    const faucet = async () => {
+
+        setMsg({ show: true, type: 'info', message: 'Claiming Token' });
+
+        const res = await axios.post('/api/faucet', { pvtKey: pvtKey },
+            {
+                headers: {
+                    'Content-Type': 'application/json'
+                }
+            }
+        );
+
+        const data = res.data;
+
+        if (data.success) {
+            setMsg({ show: true, type: 'success', message: data.success });
+            setTimeout(() => {
+                setMsg({ show: false, type: '', message: '' });
+            }, 3500);
+            refresh();
+        } else {
+            setMsg({ show: true, type: 'error', message: data.error || 'Something error occured.' });
+            setTimeout(() => {
+                setMsg({ show: false, type: '', message: '' });
+            }, 3500);
+        }
+    };
+
     useEffect(() => {
 
         const token = localStorage.getItem('SRT Token');
+        const decode = jwt.decode(token, process.env.VERIFY);
+
+        if (!decode || !decode.address || !decode.pvtkey) {
+            localStorage.removeItem('SRT Token');
+            return;
+        }
 
         const connectwallet = async () => {
 
             try {
-                setAccount(token);
+                setAccount(decode.address);
+                setPvtKey(decode.pvtkey);
 
-                const balanceWei = await web3.eth.getBalance(token);
+                const balanceWei = await web3.eth.getBalance(decode.address);
                 const balanceEth = parseFloat(web3.utils.fromWei(balanceWei, "ether")).toFixed(4);
-                const tokenBal = await tokenContract.methods.balanceOf(token).call();
+                const tokenBal = await tokenContract.methods.balanceOf(decode.address).call();
                 const formattedBalance = web3.utils.fromWei(tokenBal, "ether");
 
                 setBalances({ eth: balanceEth, srt: formattedBalance });
@@ -152,16 +226,56 @@ export const HomeComp = () => {
                     setMsg({ show: false, type: '', message: '' });
                 }, 3500);
             } catch (err) {
+                console.log(err);
                 localStorage.removeItem('SRT Token');
             }
 
         };
 
-        if (token) {
+        if (decode.address && decode.pvtkey) {
             connectwallet();
         }
 
     }, []);
+
+    useEffect(() => {
+        if (remainingTime > 0) {
+            const interval = setInterval(() => {
+                setRemainingTime((prev) => (prev > 0 ? prev - 1 : 0));
+            }, 1000);
+            return () => clearInterval(interval); // Cleanup on unmount
+        }
+    }, [remainingTime]);
+
+    useEffect(() => {
+        if (!account) return;
+
+        const fetchLastClaimTime = async () => {
+            try {
+                const lastClaim = await tokenContract.methods.lastFaucetClaim(account).call();
+
+                const lastClaimTime = parseInt(lastClaim);
+
+                if (lastClaimTime > 0) {
+                    const nextClaimTime = lastClaimTime + 6 * 60 * 60;
+                    const now = Math.floor(Date.now() / 1000);
+                    const timeLeft = Math.max(nextClaimTime - now, 0);
+                    setRemainingTime(timeLeft);
+                }
+            } catch (err) {
+                console.error("Error fetching last claim time:", err);
+            }
+        };
+
+        fetchLastClaimTime();
+    }, [account]);
+
+    const formatTime = (seconds) => {
+        const h = Math.floor(seconds / 3600);
+        const m = Math.floor((seconds % 3600) / 60);
+        const s = seconds % 60;
+        return `${h.toString().padStart(2, "0")}:${m.toString().padStart(2, "0")}:${s.toString().padStart(2, "0")}`;
+    };
 
     return (
         <div className="bg-[#0a254d] w-full h-full min-h-[100vh] relative">
@@ -197,7 +311,7 @@ export const HomeComp = () => {
                         </button>
 
                         <div className={`${userbox && account ? 'absolute top-12 right-0 bg-white shadow-lg p-5 rounded-lg duration-300 z-40' : 'hidden duration-300'}`}>
-                            <button onClick={() => {copytoclipboard(account); setUserbox(false);}} className="flex items-center my-auto space-x-2 text-black border-b pb-2 mb-2 hover:scale-[105%] duration-300">
+                            <button onClick={() => { copytoclipboard(account); setUserbox(false); }} className="flex items-center my-auto space-x-2 text-black border-b pb-2 mb-2 hover:scale-[105%] duration-300">
                                 <IoWalletOutline className="text-xl text-blue-600" />
                                 <span className="inline">{account.slice(0, 6)}...{account.slice(-4)}</span>
                             </button>
@@ -235,7 +349,7 @@ export const HomeComp = () => {
                         <div className={`${poppins_regular} space-y-2`}>
 
                             <div className={`md:text-xl drop-shadow-lg text-[#0a254d]`}>
-                               Sepolia ETH Balance
+                                Sepolia ETH Balance
                             </div>
 
                             <div className="text-gray-700 font-semibold md:text-lg">
@@ -271,6 +385,24 @@ export const HomeComp = () => {
                         </div>
                     </div>
 
+                </div>
+
+                {/* Note */}
+                <div className={`${poppins_regular}`}>
+                    SRT Token Contract (Running on Sepolia Network) : <a href="https://sepolia.etherscan.io/address/0xF3bd2E8787111E62EC29EEd6a94874320a1586CE" target="_blank" className="underline underline-offset-3">0xF3bd2E8787111E62EC29EEd6a94874320a1586CE</a>
+                    <br /><br />
+                    You can claim tokens after every 6 hours. For claiming SRT token you must have atleast 0.003 test Eth (sepolia Eth in your wallet). Copy your wallet address by clicking on wallet address from your profile and mail your wallet address for free test ETH on <a className="font-semibold underline underline-offset-3" href="mailto:s.rangwani44@gmail.com">s.rangwani44@gmail.com</a> .
+                </div>
+
+                {/* faucet */}
+                <div className="flex justify-center mx-auto">
+                    <button
+                        className={`${remainingTime !== 0 ? 'bg-gray-500' : ''} btn1`}
+                        onClick={() => faucet()}
+                        disabled={remainingTime !== 0}
+                    >
+                        {remainingTime !== 0 ? `Claim After ${formatTime(remainingTime)}` : 'Claim 1 SRT'}
+                    </button>
                 </div>
 
             </div>
