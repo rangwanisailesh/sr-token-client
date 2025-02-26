@@ -51,6 +51,6 @@ export async function POST(req) {
 
         return NextResponse.json({ success: `Claimed TXid: ${txReceipt.transactionHash}`, txHash: txReceipt.transactionHash });
     } catch (err) {
-        return NextResponse.json({ error: err.message, err });
+       return NextResponse.json({ error: err.message, err });
     }
 }

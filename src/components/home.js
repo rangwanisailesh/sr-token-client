@@ -163,6 +163,8 @@ export const HomeComp = () => {
         setBalances({ eth: balanceEth, srt: formattedBalance });
         setModal({ show: false, type: '' });
 
+        setRemainingTime(0);
+        fetchLastClaimTime();
         setMsg({ show: true, type: 'success', message: 'Balances Updated Successfully.' });
         setTimeout(() => {
             setMsg({ show: false, type: '', message: '' });
@@ -185,15 +187,33 @@ export const HomeComp = () => {
 
         if (data.success) {
             setMsg({ show: true, type: 'success', message: data.success });
+            refresh();
+            fetchLastClaimTime();
             setTimeout(() => {
                 setMsg({ show: false, type: '', message: '' });
             }, 3500);
-            refresh();
         } else {
             setMsg({ show: true, type: 'error', message: data.error || 'Something error occured.' });
             setTimeout(() => {
                 setMsg({ show: false, type: '', message: '' });
             }, 3500);
+        }
+    };
+    
+    const fetchLastClaimTime = async () => {
+        try {
+            const lastClaim = await tokenContract.methods.lastFaucetClaim(account).call();
+
+            const lastClaimTime = parseInt(lastClaim);
+
+            if (lastClaimTime > 0) {
+                const nextClaimTime = lastClaimTime + 6 * 60 * 60;
+                const now = Math.floor(Date.now() / 1000);
+                const timeLeft = Math.max(nextClaimTime - now, 0);
+                setRemainingTime(timeLeft);
+            }
+        } catch (err) {
+            console.error("Error fetching last claim time:", err);
         }
     };
 
@@ -250,24 +270,10 @@ export const HomeComp = () => {
     useEffect(() => {
         if (!account) return;
 
-        const fetchLastClaimTime = async () => {
-            try {
-                const lastClaim = await tokenContract.methods.lastFaucetClaim(account).call();
-
-                const lastClaimTime = parseInt(lastClaim);
-
-                if (lastClaimTime > 0) {
-                    const nextClaimTime = lastClaimTime + 6 * 60 * 60;
-                    const now = Math.floor(Date.now() / 1000);
-                    const timeLeft = Math.max(nextClaimTime - now, 0);
-                    setRemainingTime(timeLeft);
-                }
-            } catch (err) {
-                console.error("Error fetching last claim time:", err);
-            }
-        };
-
-        fetchLastClaimTime();
+        if (account) {
+            setRemainingTime(0);
+            fetchLastClaimTime();
+        }
     }, [account]);
 
     const formatTime = (seconds) => {
@@ -280,7 +286,7 @@ export const HomeComp = () => {
     return (
         <div className="bg-[#0a254d] w-full h-full min-h-[100vh] relative">
 
-            <div className="contain px-5 text-white space-y-8">
+            <div className="contain px-5 text-white space-y-8 pb-10">
 
                 {/* Nav */}
                 <div className="w-full flex items-center my-auto py-5">
@@ -311,7 +317,7 @@ export const HomeComp = () => {
                         </button>
 
                         <div className={`${userbox && account ? 'absolute top-12 right-0 bg-white shadow-lg p-5 rounded-lg duration-300 z-40' : 'hidden duration-300'}`}>
-                            <button onClick={() => { copytoclipboard(account); setUserbox(false); }} className="flex items-center my-auto space-x-2 text-black border-b pb-2 mb-2 hover:scale-[105%] duration-300">
+                            <button onClick={() => { copytoclipboard(account); setUserbox(false); }} className="flex items-center my-auto space-x-2 text-black border-b pb-2 mb-2 hover:scale-[105%] duration-300 w-full">
                                 <IoWalletOutline className="text-xl text-blue-600" />
                                 <span className="inline">{account.slice(0, 6)}...{account.slice(-4)}</span>
                             </button>
@@ -322,9 +328,13 @@ export const HomeComp = () => {
                                 setPvtKey('');
                                 setInputs({ email: '', pvtkey: '' });
                                 setUserbox(false);
-                            }} className="flex items-center my-auto space-x-2 text-black hover:scale-[105%] duration-300">
+                            }} className="flex items-center my-auto space-x-2 pb-2 text-black hover:scale-[105%] duration-300">
                                 <IoMdExit className="text-xl text-blue-600" />
                                 <span className="inline">Exit</span>
+                            </button>
+
+                            <button onClick={() => { copytoclipboard(pvtKey); setUserbox(false); }} className="btn1 flex justify-center mx-auto">
+                               Private Key
                             </button>
                         </div>
                     </div>
@@ -389,9 +399,9 @@ export const HomeComp = () => {
 
                 {/* Note */}
                 <div className={`${poppins_regular}`}>
-                    SRT Token Contract (Running on Sepolia Network) : <a href="https://sepolia.etherscan.io/address/0xF3bd2E8787111E62EC29EEd6a94874320a1586CE" target="_blank" className="underline underline-offset-3">0xF3bd2E8787111E62EC29EEd6a94874320a1586CE</a>
+                    SRT Token Contract (Running on Sepolia Network) : <a href="https://sepolia.etherscan.io/address/0xF3bd2E8787111E62EC29EEd6a94874320a1586CE" target="_blank" className="underline underline-offset-3">0xF3bd2...86CE</a>
                     <br /><br />
-                    You can claim tokens after every 6 hours. For claiming SRT token you must have atleast 0.003 test Eth (sepolia Eth in your wallet). Copy your wallet address by clicking on wallet address from your profile and mail your wallet address for free test ETH on <a className="font-semibold underline underline-offset-3" href="mailto:s.rangwani44@gmail.com">s.rangwani44@gmail.com</a> .
+                    You can claim tokens after every 6 hours. For claiming SRT token you must have atleast 0.01 test Eth (sepolia Eth in your wallet). Copy your wallet address by clicking on wallet address from your profile and mail your wallet address for free test ETH on <a className="font-semibold underline underline-offset-3" href="mailto:s.rangwani44@gmail.com">s.rangwani44@gmail.com</a> .
                 </div>
 
                 {/* faucet */}
@@ -410,7 +420,7 @@ export const HomeComp = () => {
             {/* Modal */}
             <div className={`${poppins_regular} ${modal.show ? 'fixed h-[100vh] w-full bg-[#00000094] top-0 left-0 z-50' : 'hidden'}`}>
 
-                <div className="absolute top-1/2 left-1/2 bg-white rounded-lg shadow-lg p-3 lg:p-5 focus:outline-none -translate-x-1/2 -translate-y-1/2 w-[90%] md:w-[65%] lg:min-w-[20%] lg:w-auto md:max-w-[80%]">
+                <div className="absolute top-1/2 left-1/2 bg-white rounded-lg shadow-lg p-3 lg:p-5 focus:outline-none -translate-x-1/2 -translate-y-1/2 w-[90%] md:w-[65%] lg:min-w-[20%] lg:w-auto lg:max-w-[30%] md:max-w-[80%]">
 
                     {modal.type == 'create' ?
                         <div>
@@ -428,6 +438,10 @@ export const HomeComp = () => {
 
                             <div className="my-2">
                                 <span className="font-semibold">Private Key : </span><span className="inline">{pvtKey.slice(0, 6)}...{pvtKey.slice(-4)}</span> <button onClick={() => copytoclipboard(pvtKey)} className="text-blue-500 hover:text-blue-800"><FaRegClipboard /></button>
+                            </div>
+
+                            <div className="my-2">
+                                <span className="text-red-500">*</span> Please Copy your Private Key and store this anywhere. So you can use this wallet anywhere.
                             </div>
 
                             <button type="button" onClick={() => setModal({ show: false, type: '' })} className="flex justify-center mx-auto btn1">
